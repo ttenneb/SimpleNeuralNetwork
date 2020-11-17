@@ -10,7 +10,7 @@ public class SimpleNeuralNetwork {
     int numHidden;
     static int dead = 0;
 
-    double learningRate = .001;
+    double learningRate = .0002;
 
     SimpleMatrix[] weights;
     SimpleMatrix[] bias;
@@ -39,19 +39,24 @@ public class SimpleNeuralNetwork {
         //System.out.println(weights[weights.length-1].toString());
 
         for(int i = 0; i < bias.length-1; i++){
-            bias[i] = SimpleMatrix.random_DDRM(hiddenSize, 1, -1, 1, rand);
+            bias[i] = new SimpleMatrix(hiddenSize, 1);
+            bias[i].fill(0);
         }
-        bias[numHidden] = SimpleMatrix.random_DDRM(outputSize, 1, -1, 1, rand);
+        bias[numHidden] = new SimpleMatrix(outputSize, 1);
+        bias[numHidden].fill(0);
     }
     public Output feedforward(SimpleMatrix input) {
         SimpleMatrix[] hidden = new SimpleMatrix[numHidden];
         SimpleMatrix output = new SimpleMatrix(ouputSize, 1);
-        hidden[0]=sigmoid(weights[0].mult(input).plus(bias[0]));
+        hidden[0]=RELU(weights[0].mult(input).plus(bias[0]));
         for( int i = 1; i < hidden.length; i++){
-            hidden[i] = sigmoid(weights[i].mult(hidden[i-1]).plus(bias[i]));
+            hidden[i] = RELU(weights[i].mult(hidden[i-1]).plus(bias[i]));
         }
-        output=sigmoid(weights[numHidden].mult(hidden[hidden.length-1]).plus(bias[numHidden]));
+        output=softmax(weights[numHidden].mult(hidden[hidden.length-1]).plus(bias[numHidden]));
         String[] key = {"0", "1", "2", "3", "4","5","6","7","8","9"};
+        if(containsNAN(output)){
+            System.out.println("GUh");
+        }
         return new Output(output, key, hidden);
     }
     public void train(SimpleMatrix input, SimpleMatrix target){
@@ -61,20 +66,26 @@ public class SimpleNeuralNetwork {
         SimpleMatrix deltaM[] = new SimpleMatrix[numHidden+1];
 
         //calculate errors
+        //error[0] = Output.output.elementLog().elementMult(target).scale(-1);
         error[0] = target.minus(Output.output);
+
         for(int i = 1; i < error.length; i++){
             error[i]=weights[weights.length-i].transpose().mult(error[i-1]);
         }
-
+        //for(SimpleMatrix m : error){
+          ///  m.print();
+        //}
         //calculate gradients
-        gradient[0]=error[0].elementMult(disigmoid(Output.output)).scale(learningRate);
+        gradient[0]=error[0].elementMult(diRELU(Output.output)).scale(learningRate);
+
         deltaM[0] = gradient[0].mult(Output.hidden[numHidden-1].transpose());
         for(int i = 1; i < gradient.length-1; i++){
-            gradient[i]=error[i].elementMult(disigmoid(Output.hidden[numHidden-i-1])).scale(learningRate);
+            gradient[i]=error[i].elementMult(diRELU(Output.hidden[numHidden-i-1])).scale(learningRate);
             deltaM[i]=gradient[i].mult(Output.hidden[numHidden-i-1].transpose());
         }
-        gradient[numHidden]=error[numHidden].elementMult(disigmoid(Output.hidden[0])).scale(learningRate);
+        gradient[numHidden]=error[numHidden].elementMult(diRELU(Output.hidden[0])).scale(learningRate);
         deltaM[numHidden]=gradient[numHidden].mult(input.transpose());
+
         for(int i = 0; i < gradient.length; i++){
             bias[i]=bias[i].plus(gradient[numHidden-i]);
             weights[i]=weights[i].plus(deltaM[numHidden-i]);
@@ -149,4 +160,35 @@ public class SimpleNeuralNetwork {
         }
         return B;
     }
+    private static SimpleMatrix softmax(SimpleMatrix A){
+        double total = 0;
+        SimpleMatrix output = new SimpleMatrix(A.numRows(), 1);
+        double max = 0;
+        for(int i = 0; i < A.numRows(); i++){
+            if(A.get(i,0) > max)
+                max = A.get(i,0);
+        }
+        A=A.minus(max);
+        for(int i = 0; i < A.numRows(); i++){
+            total += Math.exp(A.get(i,0));
+        }
+        total = Math.max(total, Math.pow(10,-9));
+        for(int i = 0; i < A.numRows(); i++){
+            output.set(i, 0, Math.exp(A.get(i,0))   /total);
+        }
+        return output;
+    }
+    private static SimpleMatrix dsoftmax(SimpleMatrix A, SimpleMatrix T){
+        SimpleMatrix output = new SimpleMatrix(A.numRows(), 1);
+        output=T.minus(A);
+        return output;
+    }
+    private static boolean containsNAN(SimpleMatrix A){
+        for(int i = 0; i < A.numRows(); i++){
+            if(Double.isNaN(A.get(i,0)))
+                return true;
+        }
+        return false;
+    }
+
 }

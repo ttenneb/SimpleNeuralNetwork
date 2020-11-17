@@ -1,4 +1,3 @@
-
 import org.ejml.simple.SimpleMatrix;
 
 import java.awt.event.KeyEvent;
@@ -24,7 +23,7 @@ public class Manager extends Game {
     static boolean pressed = false;
     static boolean[] results;
     static Output output;
-    static SimpleNeuralNetwork nn = new SimpleNeuralNetwork(784, 2, 64, 10);
+    static SimpleNeuralNetwork nn = new SimpleNeuralNetwork(784, 2, 256, 10);
     static int count = 0;
     public static void main(String args[]) throws IOException {
         Random random = new Random();
@@ -41,7 +40,6 @@ public class Manager extends Game {
         training[3] = new SimpleMatrix(2, 1);
         training[3].set(0,0,1);
         training[3].set(1,0,1);
-
         SimpleMatrix[] target = new SimpleMatrix[4];
         target[0] = new SimpleMatrix(1,1);
         target[0].set(0,0,0);
@@ -72,10 +70,8 @@ public class Manager extends Game {
             targetData[i] = new SimpleMatrix(2,1);
             testingData[i]= new SimpleMatrix(3,1);
             testingTargets[i] = new SimpleMatrix(2,1);
-
             targetData[i].fill(0);
             testingTargets[i].fill(0);
-
             //create training data
             int a =random.nextInt(320)-160;
             int b = random.nextInt(240)-120;
@@ -94,14 +90,12 @@ public class Manager extends Game {
                 else
                     targetData[i].set(0,0,1); // quad 3
             }
-
             //create testing data
             a =random.nextInt(320)-160;
             b = random.nextInt(240)-120;
             testingData[i].set(0,0, a);
             testingData[i].set(1,0, b);
             testingData[i].set(2,0,a*b);
-
             //create testing targets
             if(a>0){
                 if(b<0)
@@ -114,9 +108,7 @@ public class Manager extends Game {
                 else
                     testingTargets[i].set(0,0,1); // quad 3
             }
-
         }
-
         //Training
         for(int i = 0; i < 20000; i++){
             int index = random.nextInt(tSize);
@@ -125,7 +117,6 @@ public class Manager extends Game {
         SimpleMatrix a = new SimpleMatrix(2,1);
         a.set(0,0,100);
         a.set(1,0,50);
-
         results = new boolean[tSize];
         //collect results on trained data
         for(int i = 0 ; i < results.length; i++){
@@ -161,7 +152,7 @@ public class Manager extends Game {
 
                 trainingData[index] = new SimpleMatrix(784, 1);
                 for(int i = 1; i < values.length; i++){
-                  trainingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
+                    trainingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
                 }
                 index++;
             }
@@ -183,17 +174,20 @@ public class Manager extends Game {
 
                 testingData[index] = new SimpleMatrix(784, 1);
                 for(int i = 1; i < values.length; i++){
-                  testingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
+                    testingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
                 }
                 index++;
             }
 
         }
-        int trainLength = 5000000;
+        int trainLength = 4000000;
         for(int i = 0; i < trainLength; i++){
             int index = random.nextInt(60000);
             nn.train(trainingData[index], targetData[index]);
             System.out.println(100*((double)i/(double)trainLength) + "%");
+            if(i+100==trainLength){
+                nn.weights[0].print();
+            }
         }
         int totalCorrect=0;
         for(int i = 0 ; i < testingData.length; i++){
@@ -221,13 +215,13 @@ public class Manager extends Game {
                 output = nn.feedforward(testingData[currentTest]);
                 if (output.prediction.equals(testingAnswers[currentTest]))
                     count++;
-               // output.output.print();
+                // output.output.print();
                 pressed = true;
             }
         }else{
             pressed=false;
         }
-        int size = 2;
+        int size = 3;
         if(i.isMB(1 )&& !i.isKey(KeyEvent.VK_E)){
             if(i.getMouseX()>150 && i.getMouseX() < 179 && i.getMouseY()>150 && i.getMouseY() < 179){
                 int index = (i.getMouseY() - 150) * 28 + i.getMouseX() - 150;
@@ -237,13 +231,13 @@ public class Manager extends Game {
                 for(int j = 0; j < size; j++) {
                     drawnInput.set(index, 0, .9);
                     if(index + j < 784)
-                    drawnInput.set(index+j, 0, 250);
+                        drawnInput.set(index+j, 0, 250);
                     if(index-j >= 0)
-                    drawnInput.set(index-j, 0, 250);
+                        drawnInput.set(index-j, 0, 250);
                     if(index + j*28 < 784)
-                    drawnInput.set(index +j*28, 0, 250);
+                        drawnInput.set(index +j*28, 0, 250);
                     if(index-j*28 >= 0)
-                    drawnInput.set(index -j*28, 0, 250);
+                        drawnInput.set(index -j*28, 0, 250);
                 }
             }
         }
@@ -256,13 +250,13 @@ public class Manager extends Game {
                 for(int j = 0; j < size; j++) {
                     drawnInput.set(index, 0, 0);
                     if(index + j < 784)
-                    drawnInput.set(index+j, 0, 0);
+                        drawnInput.set(index+j, 0, 0);
                     if(index-j >= 0)
-                    drawnInput.set(index-j, 0, 0);
+                        drawnInput.set(index-j, 0, 0);
                     if(index + j*28 < 784)
-                    drawnInput.set(index+j*28, 0, 0);
+                        drawnInput.set(index+j*28, 0, 0);
                     if(index-j*28 >= 0)
-                    drawnInput.set(index-j*28, 0, 0);
+                        drawnInput.set(index-j*28, 0, 0);
                 }
             }
         }
@@ -270,30 +264,26 @@ public class Manager extends Game {
             drawnInput.fill(0);
         }
         drawnOutput = nn.feedforward(drawnInput);
+
     }
 
     @Override
     public void renderer(Renderer r) {
-       //Cross display
+        //Cross display
      /* int count = 0;
         for(SimpleMatrix t : testingData){
             r.drawLine(0, 120, 320, 120, 0xff00ff);
             r.drawLine(160, 0, 160, 240, 0xff00ff);
-
-
             double x = t.get(0,0);
             double y = t.get(1,0);
-
             if(testingTargets[count].get(0,0) ==1 && results[count])
                 r.drawImage((int)x-2+160, (int)y-2+120, new Image(5,5,0xff0000));
             if(testingTargets[count].get(1,0) ==1 && results[count])
                 r.drawImage((int)x-2+160, (int)y-2+120, new Image(5,5,0x0000ff));
-
             r.drawImage((int)x+160, (int)y+120, new Image(3,3,0x00ff00));
-
             count++;
        // }*/
-     //MNIST
+        //MNIST
         r.clear();
         r.drawLine(150, 150, 179, 150, 0xff0000);
         r.drawLine(150, 150, 150, 179, 0xff0000);
@@ -308,6 +298,10 @@ public class Manager extends Game {
         }
         if(drawnOutput != null){
             r.drawText(drawnOutput.prediction, 185,185, 0xff0000);
+            r.drawText(Double.toString(drawnOutput.output.elementSum()), 200, 90, 0x00ff00);
+            for(int i = 0; i < 10; i++){
+                r.drawText(Double.toString(drawnOutput.output.get(i,0)), 200,100 + i*10, 0xff0000);
+            }
         }
     }
 
