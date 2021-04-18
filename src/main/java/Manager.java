@@ -2,29 +2,26 @@ import org.ejml.simple.SimpleMatrix;
 
 import java.awt.event.KeyEvent;
 import java.io.*;
-import java.security.Key;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 
 public class Manager extends Game {
-    static Engine engine;
-    static SimpleMatrix[] trainingData;
-    static SimpleMatrix[] targetData;
+    private static Engine engine;
+    private static SimpleMatrix[] trainingData;
+    private static SimpleMatrix[] targetData;
     static SimpleMatrix[] testingData;
     static SimpleMatrix[] testingTargets;
     static String[] testingAnswers;
 
-    static SimpleMatrix drawnInput = new SimpleMatrix(784,1);
+    static SimpleMatrix drawnInput = new SimpleMatrix(784, 1);
     static Output drawnOutput;
 
-    static int currentTest= 0;
+    static int currentTest = 0;
     static boolean pressed = false;
-    static boolean[] results;
     static Output output;
-    static SimpleNeuralNetwork nn = new SimpleNeuralNetwork(784, 2, 256, 10);
+    static ConvolutionLayer c1 = new ConvolutionLayer(8, 28, 1);
+    static SimpleNeuralNetwork nn = new SimpleNeuralNetwork(c1.getOutputSize(), 2, 256, 10);
     static int count = 0;
+
     public static void main(String args[]) throws IOException {
         Random random = new Random();
         //XOR
@@ -131,6 +128,7 @@ public class Manager extends Game {
         }*/
 
         //MINST
+        /*
         trainingData = new SimpleMatrix[60000];
         targetData = new SimpleMatrix[60000];
         testingData = new SimpleMatrix[10000];
@@ -180,7 +178,7 @@ public class Manager extends Game {
             }
 
         }
-        int trainLength = 4000000;
+        int trainLength = 200000;
         for(int i = 0; i < trainLength; i++){
             int index = random.nextInt(60000);
             nn.train(trainingData[index], targetData[index]);
@@ -202,6 +200,103 @@ public class Manager extends Game {
         System.out.println(SimpleNeuralNetwork.dead);
 
         drawnInput.fill(0);
+         */
+
+        //MINST w/ CNN
+        trainingData = new SimpleMatrix[60000];
+        targetData = new SimpleMatrix[60000];
+        testingData = new SimpleMatrix[10000];
+        testingTargets = new SimpleMatrix[10000];
+        testingAnswers = new String[10000];
+
+
+        InputStream A = Manager.class.getResourceAsStream("/mnist_train.csv");
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(A))) {
+            String line;
+            int index = 0;
+            br.readLine();
+
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+
+                targetData[index] = new SimpleMatrix(10, 1);
+                targetData[index].fill(0);
+                targetData[index].set(Integer.parseInt(values[0]), 0, 1);
+
+                //flattten input
+                /*trainingData[index] = new SimpleMatrix(784, 1);
+                for(int i = 1; i < values.length; i++){
+                    trainingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
+                }*/
+                //2d input
+                trainingData[index] = new SimpleMatrix(28, 28);
+                for (int i = 0; i < 28; i++) {
+                    for (int j = 0; j < 28; j++) {
+                        trainingData[index].set(i, j, (Double.parseDouble(values[j + 1 + i * 28]) / 127.5) - 1);
+                    }
+                }
+                index++;
+            }
+        }
+
+        A = Manager.class.getResourceAsStream("/mnist_test.csv");
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(A))) {
+            String line;
+            int index = 0;
+            br.readLine();
+
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+
+                testingTargets[index] = new SimpleMatrix(10, 1);
+                testingTargets[index].fill(0);
+                testingTargets[index].set(Integer.parseInt(values[0]), 0, 1);
+                testingAnswers[index] = values[0];
+
+                //flattened input
+               /* testingData[index] = new SimpleMatrix(784, 1);
+                for(int i = 1; i < values.length; i++){
+                    testingData[index].set(i-1,0,(Double.parseDouble(values[i])/127.5)-1);
+                }*/
+                //2d input
+                testingData[index] = new SimpleMatrix(28, 28);
+                for (int i = 0; i < 28; i++) {
+                    for (int j = 0; j < 28; j++) {
+                        testingData[index].set(i, j, (Double.parseDouble(values[j + 1 + i * 28]) / 127.5) - 1);
+                    }
+                }
+                //testingData[index].print();
+                index++;
+            }
+
+        }
+        int trainLength = 60000;
+        for (int i = 0; i < trainLength; i++) {
+            int index = random.nextInt(60000);
+            SimpleMatrix[] data = {trainingData[index]};
+            SimpleMatrix cnn_output = c1.feedforward(data);
+            c1.Train(nn.train(cnn_output, targetData[index]), data);
+
+            System.out.println(100 * ((double) i / (double) trainLength) + "%");
+            if (i + 100 == trainLength) {
+                nn.weights[0].print();
+            }
+        }
+        int totalCorrect = 0;
+        for (int i = 0; i < testingData.length; i++) {
+            SimpleMatrix[] data = {testingData[i]};
+            SimpleMatrix cnn_output = c1.feedforward(data);
+            Output y = nn.feedforward(cnn_output);
+            if (y.prediction.equals(testingAnswers[i]))
+                totalCorrect++;
+        }
+
+
+        System.out.println("Correct: " + totalCorrect + " / Percentage: " + 100 * (double) totalCorrect / 10000 + "%");
+        System.out.println(SimpleNeuralNetwork.dead);
+
+        drawnInput.fill(0);
+
 
         engine = new Engine(new Manager());
         engine.start();
@@ -209,61 +304,73 @@ public class Manager extends Game {
 
     @Override
     public void update(Input i) {
-        if(i.isKey(KeyEvent.VK_SPACE)){
-            if(!pressed) {
+        if (i.isKey(KeyEvent.VK_SPACE)) {
+            if (!pressed) {
                 currentTest++;
-                output = nn.feedforward(testingData[currentTest]);
+                SimpleMatrix[] data = {testingData[currentTest]};
+                SimpleMatrix cnn_output = c1.feedforward(data);
+                output = nn.feedforward(cnn_output);
                 if (output.prediction.equals(testingAnswers[currentTest]))
                     count++;
                 // output.output.print();
                 pressed = true;
             }
-        }else{
-            pressed=false;
+        } else {
+            pressed = false;
         }
         int size = 3;
-        if(i.isMB(1 )&& !i.isKey(KeyEvent.VK_E)){
-            if(i.getMouseX()>150 && i.getMouseX() < 179 && i.getMouseY()>150 && i.getMouseY() < 179){
+        if (i.isMB(1) && !i.isKey(KeyEvent.VK_E)) {
+            if (i.getMouseX() > 150 && i.getMouseX() < 179 && i.getMouseY() > 150 && i.getMouseY() < 179) {
                 int index = (i.getMouseY() - 150) * 28 + i.getMouseX() - 150;
-                if(index > 783){
+                if (index > 783) {
                     index = 783;
                 }
-                for(int j = 0; j < size; j++) {
+                for (int j = 0; j < size; j++) {
                     drawnInput.set(index, 0, .9);
-                    if(index + j < 784)
-                        drawnInput.set(index+j, 0, 250);
-                    if(index-j >= 0)
-                        drawnInput.set(index-j, 0, 250);
-                    if(index + j*28 < 784)
-                        drawnInput.set(index +j*28, 0, 250);
-                    if(index-j*28 >= 0)
-                        drawnInput.set(index -j*28, 0, 250);
+                    if (index + j < 784)
+                        drawnInput.set(index + j, 0, 250);
+                    if (index - j >= 0)
+                        drawnInput.set(index - j, 0, 250);
+                    if (index + j * 28 < 784)
+                        drawnInput.set(index + j * 28, 0, 250);
+                    if (index - j * 28 >= 0)
+                        drawnInput.set(index - j * 28, 0, 250);
                 }
             }
         }
-        if(i.isMB(1) && i.isKey(KeyEvent.VK_E)){
-            if(i.getMouseX()>150 && i.getMouseX() < 179 && i.getMouseY()>150 && i.getMouseY() < 179){
+        if (i.isMB(1) && i.isKey(KeyEvent.VK_E)) {
+            if (i.getMouseX() > 150 && i.getMouseX() < 179 && i.getMouseY() > 150 && i.getMouseY() < 179) {
                 int index = (i.getMouseY() - 150) * 28 + i.getMouseX() - 150;
-                if(index > 783){
+                if (index > 783) {
                     index = 783;
                 }
-                for(int j = 0; j < size; j++) {
+                for (int j = 0; j < size; j++) {
                     drawnInput.set(index, 0, 0);
-                    if(index + j < 784)
-                        drawnInput.set(index+j, 0, 0);
-                    if(index-j >= 0)
-                        drawnInput.set(index-j, 0, 0);
-                    if(index + j*28 < 784)
-                        drawnInput.set(index+j*28, 0, 0);
-                    if(index-j*28 >= 0)
-                        drawnInput.set(index-j*28, 0, 0);
+                    if (index + j < 784)
+                        drawnInput.set(index + j, 0, 0);
+                    if (index - j >= 0)
+                        drawnInput.set(index - j, 0, 0);
+                    if (index + j * 28 < 784)
+                        drawnInput.set(index + j * 28, 0, 0);
+                    if (index - j * 28 >= 0)
+                        drawnInput.set(index - j * 28, 0, 0);
                 }
             }
         }
-        if(i.isKey(KeyEvent.VK_C)){
+        if (i.isKey(KeyEvent.VK_C)) {
             drawnInput.fill(0);
         }
-        drawnOutput = nn.feedforward(drawnInput);
+        SimpleMatrix reshaped_drawnInput = new SimpleMatrix(28, 28);
+        int counter = 0;
+        for (int j = 0; j < 28; j++) {
+            for (int k = 0; k < 28; k++) {
+                reshaped_drawnInput.set(j, k, drawnInput.get(counter, 0));
+                counter++;
+            }
+        }
+        SimpleMatrix[] data = {reshaped_drawnInput};
+        SimpleMatrix cnn_output = c1.feedforward(data);
+        drawnOutput = nn.feedforward(cnn_output);
 
     }
 
@@ -287,20 +394,20 @@ public class Manager extends Game {
         r.clear();
         r.drawLine(150, 150, 179, 150, 0xff0000);
         r.drawLine(150, 150, 150, 179, 0xff0000);
-        r.drawLine(179, 150,179, 179,  0xff0000);
-        r.drawLine(150, 179,179, 179,  0xff0000);
-        r.drawMatrix(151,151, drawnInput);
-        r.drawMatrix(50,50, testingData[currentTest]);
-        if(output !=null) {
+        r.drawLine(179, 150, 179, 179, 0xff0000);
+        r.drawLine(150, 179, 179, 179, 0xff0000);
+        r.drawMatrix(151, 151, drawnInput);
+        r.drawMatrix(50, 50, testingData[currentTest]);
+        if (output != null) {
             r.drawText(output.prediction, 100, 100, 0xff0000);
             r.drawText(testingAnswers[currentTest], 110, 100, 0x00ff00);
             r.drawText(Integer.toString(count) + "/" + Integer.toString(currentTest), 200, 100, 0x0000ff);
         }
-        if(drawnOutput != null){
-            r.drawText(drawnOutput.prediction, 185,185, 0xff0000);
+        if (drawnOutput != null) {
+            r.drawText(drawnOutput.prediction, 185, 185, 0xff0000);
             r.drawText(Double.toString(drawnOutput.output.elementSum()), 200, 90, 0x00ff00);
-            for(int i = 0; i < 10; i++){
-                r.drawText(Double.toString(drawnOutput.output.get(i,0)), 200,100 + i*10, 0xff0000);
+            for (int i = 0; i < 10; i++) {
+                r.drawText(Double.toString(drawnOutput.output.get(i, 0)), 200, 100 + i * 10, 0xff0000);
             }
         }
     }
